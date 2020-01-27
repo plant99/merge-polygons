@@ -1,6 +1,7 @@
 from shapely.geometry import Polygon, Point
 from shapely.ops import cascaded_union
-from pygeos import Geometry, points, measurement, set_operations
+from pygeos import Geometry, points, measurement, set_operations, constructive
+from numpy import maximum
 import folium
 p1 = Polygon([
       (
@@ -89,31 +90,36 @@ count1 = 0
 count2 = 0
 p1new_buffer = []
 p2new_buffer = []
+pyg_poly_buffer = []
 while lat < maxlat:
     
     lon = minlon
     while lon < maxlon:
-        point = points(lat+(delta/2), lon+(delta/2))
+        # point = points(lat+(delta/2), lon+(delta/2))
         poly = Polygon([
             (lat, lon),
             (lat + delta, lon),
             (lat + delta, lon + delta),
             (lat, lon + delta)
         ])
+
         pyg_poly = Geometry(poly.wkt)
-        d1 = measurement.distance(pyg_p1new, point)
-        d2 = measurement.distance(pyg_p2new, point)
-        if d1 > d2:
-            count1 += 1
-            p2new_buffer.append(pyg_poly)
-        else:
-            count2 += 1
-            p1new_buffer.append(pyg_poly)
+        pyg_poly_buffer.append(pyg_poly)
         lon += delta
     lat += delta
 
+# updated with pygeos
+d1s = measurement.distance(pyg_p1new, constructive.centroid(pyg_poly_buffer))
+d2s = measurement.distance(pyg_p2new, constructive.centroid(pyg_poly_buffer))
 
-print(count1, count2)
+# this would determine ratios, to change the ratio from half, don't use maximum
+max_d_array = maximum(d1s, d2s)
+for index, elem in enumerate(max_d_array):
+  if elem == d1s[index]:
+    p2new_buffer.append(pyg_poly_buffer[index])
+  else:
+    p1new_buffer.append(pyg_poly_buffer[index])
+
 p1new_buffer.append(pyg_p1new)
 pyg_p1new = set_operations.union_all(p1new_buffer)
 
